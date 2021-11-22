@@ -4,6 +4,7 @@ from stable_baselines3.common.env_util import make_vec_env
 
 
 def run_cartpole():
+    print("Running stable_baselines3 PPO agent learning")
     # Parallel Environments
     env = make_vec_env("CartPole-v1", n_envs=2)
 
