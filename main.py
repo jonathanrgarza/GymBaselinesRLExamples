@@ -132,9 +132,11 @@ def run_taxi():
 
 
 def main():
+    start_time = time.time()
     run_taxi()
+    print(f"Finished program. Execution time: {(time.time() - start_time):0.4}s")
 
 
 if __name__ == "__main__":
     main()
-    print("Finished program")
+
