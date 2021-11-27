@@ -1,4 +1,5 @@
 import time
+from datetime import timedelta
 import gym
 from gym import Env
 from stable_baselines3 import A2C, PPO
@@ -78,7 +79,12 @@ def run_taxi():
     # Parallel Environments
     env = make_vec_env("Taxi-v3", n_envs=4)
 
-    model = PPO.load("models/best_model.zip", env)
+    try:
+        model = PPO.load("models/best_model", env)
+    except FileNotFoundError:
+        model = None
+        print("No existing model found at models/best_model.zip")
+
     if model is None:
         print("No existing model. Creating a new model to learn with")
         model = PPO("MlpPolicy", env)
@@ -134,7 +140,7 @@ def run_taxi():
 def main():
     start_time = time.time()
     run_taxi()
-    print(f"Finished program. Execution time: {(time.time() - start_time):0.4}s")
+    print(f"Finished program. Execution time: {timedelta(seconds=(time.time() - start_time))}")
 
 
 if __name__ == "__main__":
