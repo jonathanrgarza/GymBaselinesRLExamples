@@ -59,12 +59,12 @@ def run_cart_pole():
     model.set_logger(logger)
     with wakepy.keepawake():
         model.learn(total_timesteps=25000)
-    # model.save("models/a2c_cart_pole")
+    # model.save("models/CartPole/a2c_cart_pole")
 
     # del model
     # del env
     #
-    # model = PPO.load("models/a2c_cart_pole")
+    # model = PPO.load("models/CartPole/a2c_cart_pole")
 
     env = gym.make("CartPole-v1")
     model.set_env(env)
@@ -221,7 +221,7 @@ def perform_taxi_training(logger: Logger):
     env = make_vec_env("Taxi-v3", n_envs=4)
 
     try:
-        model = PPO.load("models/best_model", env)
+        model = PPO.load("models/Taxi/best_model", env)
     except FileNotFoundError:
         model = None
         logger.log("No existing model found at models/best_model.zip")
@@ -239,7 +239,7 @@ def perform_taxi_training(logger: Logger):
     eval_env = Monitor(gym.make('Taxi-v3'))
     callback_on_best = StopTrainingOnRewardThreshold(reward_threshold=10, verbose=1)
     eval_callback = EvalCallback(eval_env=eval_env, callback_on_new_best=callback_on_best,
-                                 best_model_save_path="models/", verbose=1)
+                                 best_model_save_path="models/Taxi", verbose=1)
     with wakepy.keepawake():
         model.learn(total_timesteps=25000, callback=eval_callback)
     # model.save("models/ppo_taxi")
@@ -267,7 +267,7 @@ def run_taxi():
     else:
         logger.log("Training option disabled. Loading model from file")
         env = gym.make("Taxi-v3")
-        model = PPO.load("models/best_model", env)
+        model = PPO.load("models/Taxi/best_model", env)
 
     if DISPLAY_GAME:
         env = gym.make("Taxi-v3")
