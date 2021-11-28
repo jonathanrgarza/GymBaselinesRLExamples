@@ -1,19 +1,18 @@
 import os
 import time
 from datetime import timedelta
-from functools import reduce
-import wakepy
 
 import gym
-from gym import Env
 import optuna
+import wakepy
+from gym import Env
 from optuna.visualization import plot_optimization_history, plot_param_importances
 from stable_baselines3 import A2C, PPO, DQN
+from stable_baselines3.common.callbacks import EvalCallback, StopTrainingOnRewardThreshold
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.evaluation import evaluate_policy
-from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.logger import configure, Logger
-from stable_baselines3.common.callbacks import EvalCallback, StopTrainingOnRewardThreshold
+from stable_baselines3.common.monitor import Monitor
 
 import TrialEvalCallback
 
@@ -33,7 +32,7 @@ def clear_console():
 
 def factors(n):
     """
-    Gets a list of the factors for a given number.
+    Gets an ordered list of the factors for a given number.
     :param n: The number to get factors for.
     :return: A list of all the factors for a given number.
     """
