@@ -166,6 +166,8 @@ def taxi_objective(trial: optuna.Trial):
 
 
 def perform_optuna_optimizing():
+    print("Starting a optuna hyperparameter optimization study run")
+
     study = optuna.create_study(direction="maximize")
 
     n_trials = 100
