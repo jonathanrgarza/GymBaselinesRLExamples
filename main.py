@@ -6,7 +6,7 @@ from stable_baselines3 import A2C, PPO
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.evaluation import evaluate_policy
 from stable_baselines3.common.monitor import Monitor
-from stable_baselines3.common.logger import configure
+from stable_baselines3.common.logger import configure, Logger
 from stable_baselines3.common.callbacks import EvalCallback, StopTrainingOnRewardThreshold
 
 
@@ -18,7 +18,7 @@ def clear_console():
     """
     import os
     clear_command: str = "cls"
-    if os.name != "ns":
+    if os.name != "nt":
         clear_command = "clear"
     os.system(clear_command)
 
@@ -69,13 +69,7 @@ def run_cartpole():
     print(f"Performance: Rewards: {mean_rewards} +/- {std_rewards:.2f}")
 
 
-def run_taxi():
-    print("Running stable_baselines3 PPO agent learning of taxi")
-
-    DISPLAY_GAME = False
-    # Init logger
-    logger = configure(None, ["stdout"])
-
+def perform_taxi_training(logger: Logger):
     # Parallel Environments
     env = make_vec_env("Taxi-v3", n_envs=4)
 
@@ -83,13 +77,13 @@ def run_taxi():
         model = PPO.load("models/best_model", env)
     except FileNotFoundError:
         model = None
-        print("No existing model found at models/best_model.zip")
+        logger.log("No existing model found at models/best_model.zip")
 
     if model is None:
-        print("No existing model. Creating a new model to learn with")
+        logger.log("No existing model. Creating a new model to learn with")
         model = PPO("MlpPolicy", env)
     else:
-        print("Existing model found. Will continue its learning")
+        logger.log("Existing model found. Will continue its learning")
 
     model.set_logger(logger)
 
@@ -100,41 +94,68 @@ def run_taxi():
     eval_callback = EvalCallback(eval_env=eval_env, callback_on_new_best=callback_on_best,
                                  best_model_save_path="models/", verbose=1)
 
-    model.learn(total_timesteps=25000 * 100, callback=eval_callback)
+    model.learn(total_timesteps=25000, callback=eval_callback)
     # model.save("models/ppo_taxi")
     env.close()
+    logger.log("Training complete")
 
-    # del model
-    # del env
-    #
-    # model = PPO.load("models/ppo_taxi")
+    return model
+
+
+def run_taxi():
+    print("Running stable_baselines3 PPO agent learning of taxi")
+
+    PERFORM_TRAINING = True
+    DISPLAY_GAME = True
+    # Init logger
+    logger = configure(None, ["stdout"])
+
+    if not PERFORM_TRAINING and not DISPLAY_GAME:
+        logger.log("No action to perform, please update script/program and run again")
+        return
+
+    if PERFORM_TRAINING:
+        model = perform_taxi_training(logger)
+    else:
+        logger.log("Training option disabled. Loading model from file")
+        env = gym.make("Taxi-v3")
+        model = PPO.load("models/best_model", env)
+
     if DISPLAY_GAME:
         env = gym.make("Taxi-v3")
         model.set_env(env)
         state = env.reset()
         done = False
+
+        reward_score = 0
+        steps = 0
         for _ in range(1000):
             action, _states = model.predict(state)
             new_state, reward, done, info = env.step(action)
             state = new_state
 
+            reward_score += reward
+            steps += 1
+
             clear_console()
             env.render()
-            print(f"Reward: {reward}")
+            logger.log(f"Reward: {reward}, Step#: {steps}")
             time.sleep(0.6)
 
             if done:
+                logger.log(f"Reward Sum/Score: {reward_score}, Steps: {steps}")
                 break
 
         if not done:
-            print("Agent could not complete the game")
+            logger.log("Agent could not complete the game")
 
         env.close()
+        logger.log("Game complete")
 
     env = gym.make("Taxi-v3")
     model.set_env(env)
     mean_rewards, std_rewards = test_agent(model, env)
-    print(f"Performance: Rewards: {mean_rewards} +/- {std_rewards:.2f}")
+    logger.log(f"Performance: Rewards: {mean_rewards} +/- {std_rewards:.2f}")
 
 
 def main():
