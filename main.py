@@ -2,6 +2,7 @@ import os
 import time
 from datetime import timedelta
 from functools import reduce
+import wakepy
 
 import gym
 from gym import Env
@@ -46,8 +47,8 @@ def test_agent(model, env: Env):
     return evaluate_policy(model, monitored_env, n_eval_episodes=10)
 
 
-def run_cartpole():
-    print("Running stable_baselines3 A2C agent learning of cartpole")
+def run_cart_pole():
+    print("Running stable_baselines3 A2C agent learning of cart pole")
     # Init logger
     logger = configure(None, ["stdout"])
 
@@ -56,13 +57,14 @@ def run_cartpole():
 
     model = A2C("MlpPolicy", env)
     model.set_logger(logger)
-    model.learn(total_timesteps=25000)
-    # model.save("models/a2c_cartpole")
+    with wakepy.keepawake():
+        model.learn(total_timesteps=25000)
+    # model.save("models/a2c_cart_pole")
 
     # del model
     # del env
     #
-    # model = PPO.load("models/a2c_cartpole")
+    # model = PPO.load("models/a2c_cart_pole")
 
     env = gym.make("CartPole-v1")
     model.set_env(env)
@@ -138,6 +140,7 @@ def taxi_objective(trial: optuna.Trial):
     eval_callback = TrialEvalCallback.TrialEvalCallback(eval_env, trial)
 
     try:
+        # No keep awake needed here as this is called by optuna which has been kept awake
         model.learn(25000 * 10, callback=eval_callback)
 
         model.env.close()
@@ -173,7 +176,8 @@ def perform_optuna_optimizing():
     n_trials = 100
 
     try:
-        study.optimize(taxi_objective, n_trials=n_trials)
+        with wakepy.keepawake():
+            study.optimize(taxi_objective, n_trials=n_trials)
     except KeyboardInterrupt:
         pass
 
@@ -236,8 +240,8 @@ def perform_taxi_training(logger: Logger):
     callback_on_best = StopTrainingOnRewardThreshold(reward_threshold=10, verbose=1)
     eval_callback = EvalCallback(eval_env=eval_env, callback_on_new_best=callback_on_best,
                                  best_model_save_path="models/", verbose=1)
-
-    model.learn(total_timesteps=25000, callback=eval_callback)
+    with wakepy.keepawake():
+        model.learn(total_timesteps=25000, callback=eval_callback)
     # model.save("models/ppo_taxi")
     env.close()
     logger.log("Training complete")
@@ -245,6 +249,7 @@ def perform_taxi_training(logger: Logger):
     return model
 
 
+# noinspection PyPep8Naming
 def run_taxi():
     print("Running stable_baselines3 PPO agent learning of taxi")
 
