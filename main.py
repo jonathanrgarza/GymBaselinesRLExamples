@@ -1,13 +1,20 @@
+import os
 import time
 from datetime import timedelta
+from functools import reduce
+
 import gym
 from gym import Env
-from stable_baselines3 import A2C, PPO
+import optuna
+from optuna.visualization import plot_optimization_history, plot_param_importances
+from stable_baselines3 import A2C, PPO, DQN
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.evaluation import evaluate_policy
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.logger import configure, Logger
 from stable_baselines3.common.callbacks import EvalCallback, StopTrainingOnRewardThreshold
+
+import TrialEvalCallback
 
 
 def clear_console():
@@ -21,6 +28,16 @@ def clear_console():
     if os.name != "nt":
         clear_command = "clear"
     os.system(clear_command)
+
+
+def factors(n):
+    """
+    Gets a list of the factors for a given number.
+    :param n: The number to get factors for.
+    :return: A list of all the factors for a given number.
+    """
+    return set(reduce(list.__add__,
+                      ([i, n // i] for i in range(1, int(n ** 0.5) + 1) if n % i == 0)))
 
 
 def test_agent(model, env: Env):
@@ -67,6 +84,124 @@ def run_cartpole():
     model.set_env(env)
     mean_rewards, std_rewards = test_agent(model, env)
     print(f"Performance: Rewards: {mean_rewards} +/- {std_rewards:.2f}")
+
+
+def taxi_objective(trial: optuna.Trial):
+    """
+    Function to use with optuna to tune hyperparameters for taxi environment
+    :param trial: The optuna trial
+    :return: The mean reward for the trial
+    """
+    # Create the gym model
+    eval_env = Monitor(gym.make("Taxi-v3"))
+
+    # Determine the hyperparameters
+    algorithm = trial.suggest_categorical("algorithm", ["PPO", "A2C", "DQN"])
+    policy = "MlpPolicy"
+
+    # Get trial's hyperparameters that are common to all algorithms
+    learning_rate = trial.suggest_float("learning_rate", 0, 1)
+    gamma = trial.suggest_float("gamma", 0, 1)
+
+    if algorithm == "PPO":
+        # Get trial's hyperparameters that are for PPO algorithm only
+        n_steps = trial.suggest_int("n_steps", 1, 2048 * 5)
+        n_epochs = trial.suggest_int("n_epochs", 1, 10 * 5)
+
+        # Suggestion: factors of n_steps * n_envs (number of environments (parallel))
+        # batch_size = trial.suggest_categorical("batch_size", factors(n_steps))
+        n_steps_factors = factors(n_steps)
+        if len(n_steps_factors) > 2:
+            n_steps_factors.pop()
+        batch_size = n_steps_factors.pop()  # Get second largest factor (or last factor if only two)
+
+        model = PPO(policy, eval_env, learning_rate=learning_rate, gamma=gamma, n_steps=n_steps, n_epochs=n_epochs,
+                    batch_size=batch_size)
+    elif algorithm == "A2C":
+        # Get trial's hyperparameters that are for PPO algorithm only
+        n_steps = trial.suggest_int("n_steps", 1, 5 * 5)
+
+        model = A2C(policy, eval_env, learning_rate=learning_rate, gamma=gamma, n_steps=n_steps)
+    elif algorithm == "DQN":
+        # batch_size = trial.suggest_int("batch_size", 1, 32 * 5)
+
+        model = DQN(policy, eval_env, learning_rate=learning_rate, gamma=gamma)
+    else:
+        raise ValueError(f"Invalid algorithm selected: {algorithm}")
+
+    eval_callback = TrialEvalCallback.TrialEvalCallback(eval_env, trial)
+
+    try:
+        model.learn(25000, callback=eval_callback)
+
+        model.env.close()
+        eval_env.close()
+    except (AssertionError, ValueError) as e:
+        # Sometimes, random hyperparameters can generate NaN
+        model.env.close()
+        eval_env.close()
+        # Prune hyperparameters that generate NaNs
+        print(e)
+        print("============")
+        print("Sampled hyperparameters:")
+        print(trial.params)
+        raise optuna.exceptions.TrialPruned()
+
+    is_pruned = eval_callback.is_pruned
+    reward = eval_callback.last_mean_reward
+
+    del model.env, eval_callback
+    del model
+
+    if is_pruned:
+        raise optuna.exceptions.TrialPruned()
+
+    return reward
+
+
+def perform_optuna_optimizing():
+    study = optuna.create_study(direction="maximize")
+
+    n_trials = 100
+
+    try:
+        study.optimize(taxi_objective, n_trials=n_trials)
+    except KeyboardInterrupt:
+        pass
+
+    print("Number of finished trials: ", len(study.trials))
+
+    print("Best trial:")
+    trial = study.best_trial
+
+    print("Value: ", trial.value)
+
+    print("Params: ")
+    for key, value in trial.params.items():
+        print(f"    {key}: {value}")
+
+    report_name = (
+        f"report_Taxi_{n_trials}-trials-{25000}"
+        f"-TPE-None_{int(time.time())}"
+    )
+
+    log_path = os.path.join("models", "Taxi", report_name)
+
+    print(f"Writing report to {log_path}")
+
+    # Write report
+    os.makedirs(os.path.dirname(log_path), exist_ok=True)
+    study.trials_dataframe().to_csv(f"{log_path}.csv")
+
+    # Plot optimization result
+    try:
+        fig1 = plot_optimization_history(study)
+        fig2 = plot_param_importances(study)
+
+        fig1.show()
+        fig2.show()
+    except (ValueError, ImportError, RuntimeError):
+        pass
 
 
 def perform_taxi_training(logger: Logger):
@@ -160,10 +295,10 @@ def run_taxi():
 
 def main():
     start_time = time.time()
-    run_taxi()
+    # run_taxi()
+    perform_optuna_optimizing()
     print(f"Finished program. Execution time: {timedelta(seconds=(time.time() - start_time))}")
 
 
 if __name__ == "__main__":
     main()
-
