@@ -105,15 +105,21 @@ def taxi_objective(trial: optuna.Trial):
 
     if algorithm == "PPO":
         # Get trial's hyperparameters that are for PPO algorithm only
-        n_steps = trial.suggest_int("n_steps", 1, 2048 * 5)
+        n_steps = trial.suggest_int("n_steps", 2, 2048 * 5)
         n_epochs = trial.suggest_int("n_epochs", 1, 10 * 5)
 
         # Suggestion: factors of n_steps * n_envs (number of environments (parallel))
         # batch_size = trial.suggest_categorical("batch_size", factors(n_steps))
         n_steps_factors = factors(n_steps)
+        n_steps_factors_copy = n_steps_factors.copy()  # Copy for debugging
         if len(n_steps_factors) > 2:
             n_steps_factors.pop()
         batch_size = n_steps_factors.pop()  # Get second largest factor (or last factor if only two)
+
+        if batch_size == 1:
+            print("Invalid batch_size would have been picked")
+            print(f"Factors of {n_steps} were: {n_steps_factors_copy}")
+            batch_size = n_steps
 
         model = PPO(policy, eval_env, learning_rate=learning_rate, gamma=gamma, n_steps=n_steps, n_epochs=n_epochs,
                     batch_size=batch_size)
@@ -132,7 +138,7 @@ def taxi_objective(trial: optuna.Trial):
     eval_callback = TrialEvalCallback.TrialEvalCallback(eval_env, trial)
 
     try:
-        model.learn(25000, callback=eval_callback)
+        model.learn(25000 * 10, callback=eval_callback)
 
         model.env.close()
         eval_env.close()
