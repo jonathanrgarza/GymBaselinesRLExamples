@@ -37,8 +37,14 @@ def factors(n):
     :param n: The number to get factors for.
     :return: A list of all the factors for a given number.
     """
-    return set(reduce(list.__add__,
-                      ([i, n // i] for i in range(1, int(n ** 0.5) + 1) if n % i == 0)))
+    factor_list = []
+    for i in range(1, int(n ** 0.5) + 1):
+        if n % i == 0:
+            factor_list.append(i)
+            factor_list.append(n // i)
+
+    factor_list.sort()
+    return set(factor_list)
 
 
 def test_agent(model, env: Env):
@@ -171,7 +177,7 @@ def taxi_objective(trial: optuna.Trial):
 def perform_optuna_optimizing():
     print("Starting a optuna hyperparameter optimization study run")
 
-    study = optuna.create_study(direction="maximize")
+    study = optuna.create_study(study_name="taxi_study_1", direction="maximize")
 
     n_trials = 100
 
@@ -310,6 +316,7 @@ def main():
     start_time = time.time()
     # run_taxi()
     perform_optuna_optimizing()
+    # print(factors(1858))
     print(f"Finished program. Execution time: {timedelta(seconds=(time.time() - start_time))}")
 
 
