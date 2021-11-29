@@ -1,5 +1,7 @@
 import os
 import time
+import logging
+import sys
 from datetime import timedelta
 
 import gym
@@ -142,7 +144,7 @@ def taxi_objective(trial: optuna.Trial):
     else:
         raise ValueError(f"Invalid algorithm selected: {algorithm}")
 
-    eval_callback = TrialEvalCallback.TrialEvalCallback(eval_env, trial)
+    eval_callback = TrialEvalCallback.TrialEvalCallback(eval_env, trial, verbose=1)
 
     try:
         # No keep awake needed here as this is called by optuna which has been kept awake
@@ -176,13 +178,19 @@ def taxi_objective(trial: optuna.Trial):
 def perform_optuna_optimizing():
     print("Starting a optuna hyperparameter optimization study run")
 
-    study = optuna.create_study(study_name="taxi_study_1", direction="maximize")
+    # Add stream handler of stdout to show the messages
+    optuna.logging.get_logger("optuna").addHandler(logging.StreamHandler(sys.stdout))
+    study_name = "taxi_study_1"  # Unique identifier of the study
+    storage_name = f"sqlite:///models/Taxi/{study_name}.db"
+    study = optuna.create_study(study_name=study_name, storage=storage_name, direction="maximize", load_if_exists=True)
 
     n_trials = 100
+    completed = False
 
     try:
         with wakepy.keepawake():
             study.optimize(taxi_objective, n_trials=n_trials)
+            completed = True
     except KeyboardInterrupt:
         pass
 
@@ -197,9 +205,14 @@ def perform_optuna_optimizing():
     for key, value in trial.params.items():
         print(f"    {key}: {value}")
 
+    if completed:
+        completed_str = "Completed"
+    else:
+        completed_str = "Uncompleted"
+
     report_name = (
         f"report_Taxi_{n_trials}-trials-{25000}"
-        f"-TPE-None_{int(time.time())}"
+        f"-TPE-None_{int(time.time())}-status-{completed_str}"
     )
 
     log_path = os.path.join("models", "Taxi", report_name)
