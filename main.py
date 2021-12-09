@@ -32,11 +32,13 @@ def clear_console():
     os.system(clear_command)
 
 
-def factors(n):
+def factors(n: int) -> list[int]:
     """
     Gets an ordered list of the factors for a given number.
+
     :param n: The number to get factors for.
     :return: A list of all the factors for a given number.
+    :rtype: list
     """
     factor_list = []
     for i in range(1, int(n ** 0.5) + 1):
@@ -44,8 +46,9 @@ def factors(n):
             factor_list.append(i)
             factor_list.append(n // i)
 
+    factor_list = list(dict.fromkeys(factor_list))  # Get only unique entries
     factor_list.sort()
-    return set(factor_list)
+    return factor_list
 
 
 def test_agent(model, env: Env):
